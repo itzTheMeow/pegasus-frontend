@@ -34,7 +34,6 @@
 
 namespace {
 constexpr size_t ISSUE_LOG_LIMIT = 100;
-const QString URI_PREFIX = QStringLiteral("pegasus:");
 
 QStringList tokenize_by_comma(const QString& str)
 {
@@ -430,25 +429,10 @@ void Metadata::apply_game_entry(ParserState& ps, const metafile::Entry& entry, S
             ps.cur_game->setSortBy(first_line_of(ps, entry));
             break;
         case GameAttrib::SLUG:
-            {
-                // normalize slug to lowercase without spaces
-                QString slug_uri = URI_PREFIX + first_line_of(ps, entry)
-                    .toLower()
-                    .remove(QLatin1String(R"( )"));
-
-                model::Game* const game_ptr = sctx.game_by_uri(slug_uri);
-                if (game_ptr == ps.cur_game) {
-                    print_warning(ps, entry, LOGMSG("Duplicate slug detected: `%1`").arg(slug_uri));
-                    return;
-                }
-                if (game_ptr != nullptr && game_ptr != ps.cur_game) {
-                    print_warning(ps, entry, LOGMSG("This slug already belongs to a different game: `%1`").arg(slug_uri));
-                    return;
-                }
-
-                Q_ASSERT(game_ptr == nullptr);
-                sctx.game_add_uri(*ps.cur_game, slug_uri);
-            }
+            // normalize slug to lowercase without spaces
+            ps.cur_game->setSlug(first_line_of(ps, entry)
+                .toLower()
+                .remove(QLatin1String(R"( )")));
             break;
     }
 }
