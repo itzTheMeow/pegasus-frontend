@@ -33,6 +33,7 @@
 
 
 namespace {
+const QString SLUG_PREFIX = QStringLiteral("pg-slug:");
 QString default_db_path()
 {
     return paths::writableConfigDir() + QStringLiteral("/stats.db");
@@ -162,8 +163,12 @@ void migrate_play_entry(const QString& log_tag, int old_path_id, int new_path_id
 
 void update_modelgame(model::GameFile* const gamefile, const QDateTime& start_time, const qint64 duration)
 {
-    Q_ASSERT(gamefile);
-    gamefile->update_playstats(1, duration, start_time.addSecs(duration));
+    Q_ASSERT(gamefile && gamefile->parentGame());
+    model::Game* game = gamefile->parentGame();
+    if (game->hasSlug())
+        game->update_playstats(1, duration, start_time.addSecs(duration));
+    else
+        gamefile->update_playstats(1, duration, start_time.addSecs(duration));
 }
 
 } // namespace
@@ -214,34 +219,52 @@ Provider& PlaytimeStats::run(SearchContext& sctx)
         qint64 playtime { 0 };
         QDateTime last_played;
     };
-    HashMap<model::GameFile*, Stats> stat_map;
+    HashMap<model::Game*, Stats> stat_map_game;
+    HashMap<model::GameFile*, Stats> stat_map_gamefile;
 
     QMutexLocker lock(&m_queue_guard);
 
     while (query.next()) {
         const QString path = query.value(0).toString();
-        model::GameFile* game_ptr = sctx.gamefile_by_uri(path);
-        if (!game_ptr) {
-            game_ptr = sctx.gamefile_by_filepath(path);
-            // schedule a data migration if path is being used for a URI game
-            if (game_ptr && game_ptr->hasUri())
-                m_pending_migrations.emplace_back(game_ptr);
-        }
-        if (!game_ptr)
-            continue;
-
         const qint64 start_epoch = query.value(1).toLongLong();
         const qint64 duration = query.value(2).toLongLong();
 
-        Stats& stats = stat_map[game_ptr];
-        stats.last_played = QDateTime::fromSecsSinceEpoch(start_epoch + duration);
-        stats.playtime += std::max(static_cast<qint64>(0), duration);
-        stats.playcount++;
+        const auto update_stats = [&](Stats& stats) {
+            stats.last_played = QDateTime::fromSecsSinceEpoch(start_epoch + duration);
+            stats.playtime += std::max(static_cast<qint64>(0), duration);
+            stats.playcount++;
+        };
+
+        if (path.startsWith(SLUG_PREFIX)) {
+            std::vector<model::Game*> games = sctx.games_by_slug(path.mid(SLUG_PREFIX.length()));
+            if (games.empty())
+                continue;
+
+            for (model::Game* game_ptr : games)
+                update_stats(stat_map_game[game_ptr]);
+        } else {
+            model::GameFile* game_ptr = sctx.gamefile_by_uri(path);
+            if (!game_ptr) {
+                game_ptr = sctx.gamefile_by_filepath(path);
+                // schedule a data migration if path is being used for a URI game
+                if (game_ptr && game_ptr->hasUri())
+                    m_pending_migrations.emplace_back(game_ptr);
+            }
+            if (!game_ptr)
+                continue;
+
+            update_stats(stat_map_gamefile[game_ptr]);
+        }
     }
 
     // trigger update only once
     // TODO: C++17
-    for (const auto& pair : stat_map) {
+    for (const auto& pair : stat_map_game) {
+        model::Game* const game = pair.first;
+        const Stats& stats = pair.second;
+        game->update_playstats(stats.playcount, stats.playtime, stats.last_played);
+    }
+    for (const auto& pair : stat_map_gamefile) {
         model::GameFile* const gamefile = pair.first;
         const Stats& stats = pair.second;
         gamefile->update_playstats(stats.playcount, stats.playtime, stats.last_played);
@@ -309,8 +332,14 @@ void PlaytimeStats::start_processing()
             }
 
             for (const QueueEntry& entry : m_active_tasks) {
-                const QString path = entry.gamefile->hasUri()
+                const model::Game* game = entry.gamefile->parentGame();
+                const QString path = !game->hasSlug() ?
+                    // game slug overrides everything
+                    SLUG_PREFIX + game->slug()
+                    // use URI if provided
+                    : entry.gamefile->hasUri()
                     ? entry.gamefile->uri()
+                    // otherwise use the file path
                     : ::clean_abs_path(entry.gamefile->fileinfo());
                 const int path_id = get_path_id(display_name(), path);
                 if (path_id >= 0)
