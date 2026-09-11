@@ -33,7 +33,7 @@
 
 
 namespace {
-const QString SLUG_PREFIX = QStringLiteral("pg-slug:");
+const QString SLUG_PREFIX = QStringLiteral("pegasus-slug:");
 QString default_db_path()
 {
     return paths::writableConfigDir() + QStringLiteral("/stats.db");
@@ -165,10 +165,11 @@ void update_modelgame(model::GameFile* const gamefile, const QDateTime& start_ti
 {
     Q_ASSERT(gamefile && gamefile->parentGame());
     model::Game* game = gamefile->parentGame();
-    if (game->hasSlug())
+    if (game->hasSlug()) {
         game->update_playstats(1, duration, start_time.addSecs(duration));
-    else
+    } else {
         gamefile->update_playstats(1, duration, start_time.addSecs(duration));
+    }
 }
 
 } // namespace
@@ -237,9 +238,6 @@ Provider& PlaytimeStats::run(SearchContext& sctx)
 
         if (path.startsWith(SLUG_PREFIX)) {
             std::vector<model::Game*> games = sctx.games_by_slug(path.mid(SLUG_PREFIX.length()));
-            if (games.empty())
-                continue;
-
             for (model::Game* game_ptr : games)
                 update_stats(stat_map_game[game_ptr]);
         } else {
@@ -250,10 +248,8 @@ Provider& PlaytimeStats::run(SearchContext& sctx)
                 if (game_ptr && game_ptr->hasUri())
                     m_pending_migrations.emplace_back(game_ptr);
             }
-            if (!game_ptr)
-                continue;
-
-            update_stats(stat_map_gamefile[game_ptr]);
+            if (game_ptr)
+                update_stats(stat_map_gamefile[game_ptr]);
         }
     }
 
@@ -333,14 +329,15 @@ void PlaytimeStats::start_processing()
 
             for (const QueueEntry& entry : m_active_tasks) {
                 const model::Game* game = entry.gamefile->parentGame();
-                const QString path = !game->hasSlug() ?
-                    // game slug overrides everything
-                    SLUG_PREFIX + game->slug()
-                    // use URI if provided
-                    : entry.gamefile->hasUri()
-                    ? entry.gamefile->uri()
-                    // otherwise use the file path
-                    : ::clean_abs_path(entry.gamefile->fileinfo());
+                // file path as default
+                QString path = ::clean_abs_path(entry.gamefile->fileinfo());
+                // game slug overrides everything
+                if (game->hasSlug())
+                    path = SLUG_PREFIX + game->slug();
+                // otherwise use URI if provided
+                else if (entry.gamefile->hasUri())
+                    path = entry.gamefile->uri();
+
                 const int path_id = get_path_id(display_name(), path);
                 if (path_id >= 0)
                     save_play_entry(display_name(), path_id, entry.launch_time, entry.duration);

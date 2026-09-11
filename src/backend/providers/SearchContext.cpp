@@ -102,7 +102,8 @@ std::vector<model::Game*> SearchContext::games_by_slug(const QString& slug) cons
 {
     std::vector<model::Game*> found_games;
     for (const auto& pair : m_game_entries) {
-        if (pair.first->slug() == slug) found_games.emplace_back(pair.first);
+        if (pair.first->slug() == slug) 
+            found_games.emplace_back(pair.first);
     }
     return found_games;
 }
@@ -258,7 +259,7 @@ void SearchContext::finalize_apply_lists()
     for (auto& pair : m_collection_games) {
         VEC_REMOVE_DUPLICATES(pair.second);
         pair.first->setGames(std::move(pair.second));
-    } 
+    }
 }
 
 std::pair<std::vector<model::Collection*>, std::vector<model::Game*>> SearchContext::finalize(QObject* const parent)

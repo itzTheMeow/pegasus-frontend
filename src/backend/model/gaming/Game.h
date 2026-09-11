@@ -86,7 +86,6 @@ public:
     GETTER(const QString&, summary, summary)
     GETTER(const QString&, description, description)
     GETTER(const QString&, slug, slug)
-    bool hasSlug() const { return !m_data.slug.isEmpty(); }
     GETTER(const QDate&, releaseDate, release_date)
     GETTER(int, playerCount, player_count)
     GETTER(float, rating, rating)
@@ -171,6 +170,8 @@ public:
     QVariantMap& extraMapMut() { return m_extra; }
 
 
+    bool hasSlug() const { return !m_data.slug.isEmpty(); }
+    
     const Assets& assets() const { return *m_assets; }
     Assets& assetsMut() { return *m_assets; }
     Assets* assetsPtr() const { return m_assets; }
