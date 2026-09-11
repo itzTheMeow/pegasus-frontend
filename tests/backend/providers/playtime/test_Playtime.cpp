@@ -180,7 +180,7 @@ void test_Playtime::read_slug()
         QSqlQuery query(db);
         query.exec(QStringLiteral("CREATE TABLE paths (id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL);"));
         query.exec(QStringLiteral("CREATE TABLE plays (id INTEGER PRIMARY KEY, path_id INTEGER NOT NULL REFERENCES plays(id), start_time INTEGER NOT NULL, duration INTEGER NOT NULL);"));
-        query.exec(QStringLiteral("INSERT INTO paths VALUES (1, 'pg-slug:my-slug');"));
+        query.exec(QStringLiteral("INSERT INTO paths VALUES (1, 'pegasus-slug:my-slug');"));
         query.exec(QStringLiteral("INSERT INTO plays VALUES (1, 1, 1531755000, 35);"));
         db.close();
     }

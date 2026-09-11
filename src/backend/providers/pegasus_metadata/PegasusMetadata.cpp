@@ -429,10 +429,8 @@ void Metadata::apply_game_entry(ParserState& ps, const metafile::Entry& entry, S
             ps.cur_game->setSortBy(first_line_of(ps, entry));
             break;
         case GameAttrib::SLUG:
-            // normalize slug to lowercase without spaces
-            ps.cur_game->setSlug(first_line_of(ps, entry)
-                .toLower()
-                .remove(QLatin1String(R"( )")));
+            // normalize slug to lowercase
+            ps.cur_game->setSlug(first_line_of(ps, entry).toLower());
             break;
     }
 }
